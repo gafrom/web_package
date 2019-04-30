@@ -1,0 +1,42 @@
+Metrics/LineLength:
+  Max: 100
+  IgnoreCopDirectives: true
+
+Naming/UncommunicativeMethodParamName:
+  AllowedNames:
+    - s
+
+Style/CharacterLiteral:
+  Enabled: false
+
+Metrics/MethodLength:
+  Exclude:
+    - lib/web_package/cbor.rb
+    - lib/web_package/mice.rb
+    - lib/web_package/signed_http_exchange.rb
+
+Metrics/AbcSize:
+  Max: 20
+  Exclude:
+    - lib/web_package/cbor.rb
+    - lib/web_package/mice.rb
+    - lib/web_package/signed_http_exchange.rb
+
+Layout/EmptyLineAfterGuardClause:
+  Exclude:
+    - lib/web_package/signed_http_exchange.rb
+
+Metrics/ClassLength:
+  Exclude:
+    - lib/web_package/signed_http_exchange.rb
+
+Style/RedundantReturn:
+  Enabled: false
+
+Layout/SpaceInsideRangeLiteral:
+  Exclude:
+    - lib/web_package/cbor.rb
+
+Layout/ExtraSpacing:
+  Exclude:
+    - lib/web_package/cbor.rb
