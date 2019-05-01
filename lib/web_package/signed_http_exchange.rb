@@ -1,5 +1,7 @@
 # encoding: ASCII-8BIT
 
+require 'uri'
+
 module WebPackage
   # Builds headers and body of SXG format for a given pair of HTTP request-response.
   # SXG format allows a browser to trust that a single HTTP request/response pair was
