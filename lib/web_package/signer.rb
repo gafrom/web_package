@@ -1,3 +1,5 @@
+require 'openssl'
+
 module WebPackage
   # Performs signing of a message with ECDSA.
   class Signer

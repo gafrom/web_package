@@ -1,5 +1,4 @@
-require 'web_package/errors/body_format_error'
-require 'web_package/errors/certificate_url_format_error'
+require 'web_package/errors/body_encoding_error'
 require 'web_package/version'
 require 'web_package/helpers'
 require 'web_package/mice'
