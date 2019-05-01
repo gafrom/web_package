@@ -29,11 +29,10 @@ module WebPackage
     Response  = Struct.new :body, :headers, :status
     MOCK_RESP = Response['<h1>Hello!</h1>', { 'Content-Type' => 'text/html; charset=utf-8' }, 200]
 
-    attr_reader :url, :response, :mice
-
     # accepts two args representing a request-response pair to be packed into SXG format
     def initialize(url = MOCK_URL, response = MOCK_RESP)
       @uri = build_uri_from url
+      @url = @uri.to_s
       @response = response
 
       @cbor = CBOR.new
@@ -59,11 +58,11 @@ module WebPackage
       @body << "sxg1-b3\x00"
 
       # 2.  2 bytes storing a big-endian integer "fallbackUrlLength".
-      @body << [fallback_url.bytesize].pack('S>')
+      @body << [@url.bytesize].pack('S>')
 
       # 3.  "fallbackUrlLength" bytes holding a "fallbackUrl", which MUST be
       #     an absolute URL with a scheme of "https".
-      @body << fallback_url
+      @body << @url
 
       # 4.  3 bytes storing a big-endian integer "sigLength".  If this is
       #     larger than 16384 (16*1024), parsing MUST fail.
@@ -154,8 +153,8 @@ module WebPackage
 
       # 8.  The 8-byte big-endian encoding of the length in bytes of
       #     "requestUrl", followed by the bytes of "requestUrl".
-      @message << [url.bytesize].pack('Q>')
-      @message << url
+      @message << [@url.bytesize].pack('Q>')
+      @message << @url
 
       # 9.  The 8-byte big-endian encoding of the length in bytes of
       #     "responseHeaders", followed by the bytes of
@@ -166,12 +165,12 @@ module WebPackage
 
     def encoded_mice_headers
       @encoded_mice_headers ||=
-        @cbor.generate @mice.headers.merge(':status' => bin(response.status))
+        @cbor.generate @mice.headers.merge(':status' => bin(@response.status))
     end
 
     # returns a string representing serialized label + params
     def structured_header_for(label, params)
-      if (params['cert-url'] || '').empty?
+      if params[:'cert-url'].to_s.empty?
         raise '[SignedHttpExchange] No certificate url provided - please use `SXG_CERT_URL` '\
               'env var. Endpoint should respond with `application/cert-chain+cbor` content type.'
       end
@@ -213,10 +212,6 @@ module WebPackage
       raise '[SignedHttpExchange] Request host is required' if u.host.nil?
 
       u
-    end
-
-    def fallback_url
-      @fallback_url ||= @uri.to_s
     end
 
     def validity_url
