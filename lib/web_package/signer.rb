@@ -7,8 +7,8 @@ module WebPackage
     attr_reader :signed_at, :expires_at, :cert, :integrity, :cert_url
 
     def initialize(path_to_cert, path_to_key)
-      @alg      = OpenSSL::PKey::EC.new(File.read(path_to_key))
-      @cert     = OpenSSL::X509::Certificate.new(File.read(path_to_cert))
+      @alg  = OpenSSL::PKey::EC.new(File.read(path_to_key))
+      @cert = OpenSSL::X509::Certificate.new(File.read(path_to_cert))
 
       @signed_at  = Time.zone.now
       @expires_at = @signed_at + 7.days
