@@ -169,7 +169,7 @@ module WebPackage
 
     # returns a string representing serialized label + params
     def structured_header_for(label, params)
-      if params['cert-url'].blank?
+      if (params['cert-url'] || '').empty?
         raise '[SignedHttpExchange] No certificate url provided - please use `SXG_CERT_URL` '\
               'env var. Endpoint should respond with `application/cert-chain+cbor` content type.'
       end
@@ -208,7 +208,7 @@ module WebPackage
     def build_uri_from(url)
       u = url.is_a?(URI) ? url : URI(url)
       raise "[SignedHttpExchange] Unsupported URI scheme: #{u.scheme}" unless u.is_a? URI::HTTPS
-      raise '[SignedHttpExchange] Request host is required' if u.host.blank?
+      raise '[SignedHttpExchange] Request host is required' if u.host.nil?
 
       u
     end

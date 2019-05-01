@@ -1,3 +1,6 @@
+require 'digest/sha2'
+require 'base64'
+
 module WebPackage
   # Helper methods used in the library.
   module Helpers
