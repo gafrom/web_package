@@ -15,9 +15,9 @@ module WebPackage
       'Cache-Control'          => 'no-transform',
       'X-Content-Type-Options' => 'nosniff'
     }.freeze
-    CERT_URL  = ENV['SXG_CERT_URL']
-    CERT_PATH = ENV['SXG_CERT_PATH']
-    PRIV_PATH = ENV['SXG_PRIV_PATH']
+    CERT_URL  = ENV.fetch 'SXG_CERT_URL'
+    CERT_PATH = ENV.fetch 'SXG_CERT_PATH'
+    PRIV_PATH = ENV.fetch 'SXG_PRIV_PATH'
     INTEGRITY = 'digest/mi-sha256-03'.freeze
 
     # Mock request-response pair just in case:
