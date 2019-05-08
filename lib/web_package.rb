@@ -1,8 +1,11 @@
+require 'uri'
+
 require 'web_package/errors/body_encoding_error'
 require 'web_package/version'
 require 'web_package/helpers'
 require 'web_package/mice'
 require 'web_package/cbor'
 require 'web_package/inner_response'
-require 'web_package/signed_http_exchange'
 require 'web_package/signer'
+require 'web_package/signed_http_exchange'
+require 'web_package/middleware'
