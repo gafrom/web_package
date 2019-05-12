@@ -10,7 +10,10 @@ module WebPackage
 
     def initialize(headers, body)
       @body    = body.dup
-      @headers = headers.transform_keys { |key| key.to_s.downcase } # only lowercase keys allowed
+      @headers = headers.dup.tap do |hsh|
+        # only lowercase keys allowed
+        hsh.keys.each { |key| hsh[key.to_s.downcase] = hsh.delete(key) }
+      end
 
       @encoded = false
     end

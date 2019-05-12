@@ -24,7 +24,9 @@ module WebPackage
     def generate_bytes(input)
       case input
       when Hash
-        input = input.transform_keys { |key| bin(key) }
+        input = input.dup.tap do |hsh|
+          hsh.keys.each { |key| hsh[bin(key)] = hsh.delete(key) }
+        end
 
         bytes = hsh_size(input)
         bytes[0] |= major_type(5)
