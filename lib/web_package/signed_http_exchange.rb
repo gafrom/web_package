@@ -220,7 +220,7 @@ module WebPackage
         fi = path.index(?.)
         no_format_path = fi ? path[0...fi] : path # path without format, i.e. default :html
 
-        URI::HTTPS.build(host: @uri.host, path: no_format_path).to_s
+        URI::HTTPS.build(host: @uri.host, path: no_format_path, query: @uri.query).to_s
       end
     end
 
