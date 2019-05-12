@@ -26,7 +26,11 @@ module WebPackage
     def sxg_delete!(path)
       return unless path.is_a?(String) && (i = path.rindex(SXG_EXT))
 
-      path[i...i + SXG_EXT.size] = ''
+      # check that extension is either the last char or followed by a slash
+      ch = path[i + SXG_EXT.size]
+      return if ch && ch != ?/
+
+      path.slice! i, SXG_EXT.size
     end
 
     def url(env)
