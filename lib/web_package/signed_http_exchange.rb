@@ -209,7 +209,6 @@ module WebPackage
 
     def build_uri_from(url)
       u = url.is_a?(URI) ? url : URI(url)
-      raise "[SignedHttpExchange] Unsupported URI scheme: #{u.scheme}" unless u.is_a? URI::HTTPS
       raise '[SignedHttpExchange] Request host is required' if u.host.nil?
 
       u
