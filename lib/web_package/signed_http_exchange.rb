@@ -18,7 +18,6 @@ module WebPackage
     CERT_URL  = ENV.fetch 'SXG_CERT_URL'
     CERT_PATH = ENV.fetch 'SXG_CERT_PATH'
     PRIV_PATH = ENV.fetch 'SXG_PRIV_PATH'
-    INTEGRITY = 'digest/mi-sha256-03'.freeze
 
     # Mock request-response pair just in case:
     MOCK_URL  = 'https://example.com/wow-fake-path'.freeze
@@ -28,13 +27,17 @@ module WebPackage
     #   url      - request url (string)
     #   response - an array, equivalent to Rack's one: [status_code, headers, body]
     def initialize(url = MOCK_URL, response = MOCK_RESP)
-      @uri = build_uri_from url
-      @url = @uri.to_s
-      @inner = InnerResponse.new(*response)
-
-      @cbor = CBOR.new
-      @mice = MICE.new(@inner.headers, @inner.payload).tap(&:encode!)
+      @uri    = build_uri_from url
+      @url    = @uri.to_s
+      @inner  = InnerResponse.new(*response)
       @signer = Signer.new CERT_PATH, PRIV_PATH
+
+      @digest, @payload_body = MICE.new.encode @inner.payload
+      # TODO: find out why we need (or do not need) Link header for the purpose of
+      #       serving Signed Http Exchange
+      @inner.headers.merge! 'content-encoding'       => 'mi-sha256-03',
+                            'digest'                 => "mi-sha256-03=#{base64(@digest)}",
+                            'x-content-type-options' => 'nosniff'
     end
 
     def headers
@@ -71,11 +74,11 @@ module WebPackage
 
       # 5.  3 bytes storing a big-endian integer "headerLength".  If this is
       #     larger than 524288 (512*1024), parsing MUST fail.
-      if encoded_mice_headers.bytesize > HEADERS_MAX_SIZE
+      if cbor_encoded_headers.bytesize > HEADERS_MAX_SIZE
         raise Errors::BodyEncodingError, 'Response Headers length is too large: '\
-              "#{encoded_mice_headers.bytesize} bytes, max: #{HEADERS_MAX_SIZE} bytes."
+              "#{cbor_encoded_headers.bytesize} bytes, max: #{HEADERS_MAX_SIZE} bytes."
       end
-      @body << [encoded_mice_headers.bytesize].pack('L>').byteslice(-3, 3)
+      @body << [cbor_encoded_headers.bytesize].pack('L>').byteslice(-3, 3)
 
       # 6.  "sigLength" bytes holding the "Signature" header field's value
       #     (Section 3.1).
@@ -86,7 +89,7 @@ module WebPackage
       #     response headers of the exchange represented by the "application/
       #     signed-exchange" resource (Section 3.2), excluding the
       #     "Signature" header field.
-      @body << encoded_mice_headers
+      @body << cbor_encoded_headers
 
       # 8.  The payload body (Section 3.3 of [RFC7230]) of the exchange
       #     represented by the "application/signed-exchange" resource.
@@ -95,7 +98,7 @@ module WebPackage
       #     exchange" header block has no effect.  A "Transfer-Encoding"
       #     header field on the outer HTTP response that transfers this
       #     resource still has its normal effect.
-      @body << @mice.body
+      @body << @payload_body
     end
 
     def to_rack_response
@@ -160,13 +163,12 @@ module WebPackage
       # 9.  The 8-byte big-endian encoding of the length in bytes of
       #     "responseHeaders", followed by the bytes of
       #     "responseHeaders".
-      @message << [encoded_mice_headers.bytesize].pack('Q>')
-      @message << encoded_mice_headers
+      @message << [cbor_encoded_headers.bytesize].pack('Q>')
+      @message << cbor_encoded_headers
     end
 
-    def encoded_mice_headers
-      @encoded_mice_headers ||=
-        @cbor.generate @mice.headers.merge(':status' => bin(@inner.status))
+    def cbor_encoded_headers
+      @cbor_encoded_headers ||= CBOR.new.generate @inner.headers
     end
 
     # returns a string representing serialized label + params
@@ -202,7 +204,7 @@ module WebPackage
                                        'cert-url':     CERT_URL,
                                        'date':         @signer.signed_at.to_i,
                                        'expires':      @signer.expires_at.to_i,
-                                       'integrity':    INTEGRITY,
+                                       'integrity':    'digest/mi-sha256-03',
                                        'sig':          @signer.sign(message).bytes,
                                        'validity-url': validity_url
     end
