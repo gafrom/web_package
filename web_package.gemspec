@@ -18,6 +18,5 @@ Gem::Specification.new do |s|
 
   s.required_ruby_version = '>=2.2.0'
 
-  s.add_development_dependency 'byebug'
   s.add_development_dependency 'rubocop', '~> 0.67'
 end
