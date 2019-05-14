@@ -8,6 +8,8 @@ module WebPackage
   # Current implementation is lazy, meaning that signing is performed upon the
   # invocation of the `body` method.
   class SignedHttpExchange
+    include Helpers
+
     SIGNATURE_MAX_SIZE = 2**14
     HEADERS_MAX_SIZE   = 2**19
     SXG_HEADERS = {
@@ -224,14 +226,6 @@ module WebPackage
 
         URI::HTTPS.build(host: @uri.host, path: no_format_path, query: @uri.query).to_s
       end
-    end
-
-    def bin(s)
-      s.to_s.force_encoding Encoding::ASCII_8BIT
-    end
-
-    def base64(s)
-      Base64.strict_encode64 s
     end
   end
 end
