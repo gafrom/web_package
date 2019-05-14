@@ -24,7 +24,13 @@ module WebPackage
       headers.dup.tap do |hsh|
         # only lowercase keys allowed
         hsh.keys.each { |key| hsh[key.to_s.downcase] = hsh.delete(key) }
-        hsh.merge! ':status' => bin(@status)
+
+        # TODO: find out why we need (or do not need) Link header for the purpose of
+        #       serving Signed Http Exchange
+        hsh.merge! ':status'                => bin(@status),
+                   'content-encoding'       => 'mi-sha256-03',
+                   'x-content-type-options' => 'nosniff'
+
         # inner cache directive is deleted because
         # exchange's response must be cacheable by a shared cache
         hsh.delete 'cache-control'

@@ -35,11 +35,7 @@ module WebPackage
       @signer = Signer.new CERT_PATH, PRIV_PATH
 
       @digest, @payload_body = MICE.new.encode @inner.payload
-      # TODO: find out why we need (or do not need) Link header for the purpose of
-      #       serving Signed Http Exchange
-      @inner.headers.merge! 'content-encoding'       => 'mi-sha256-03',
-                            'digest'                 => "mi-sha256-03=#{base64(@digest)}",
-                            'x-content-type-options' => 'nosniff'
+      @inner.headers.merge! 'digest' => "mi-sha256-03=#{base64(@digest)}"
     end
 
     def headers
