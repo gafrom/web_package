@@ -10,7 +10,7 @@ module WebPackage
 
     def call(env)
       # TODO: Implement whitelisted paths with the use of `Settings.path_prefixes`
-      env[SXG_FLAG] = true if sxg_delete!(env['PATH_INFO'])
+      env[SXG_FLAG] = true if substitute_sxg_extension!(env['PATH_INFO'])
 
       response = @app.call(env)
       return response unless response[0] == 200 && env[SXG_FLAG]
@@ -24,15 +24,14 @@ module WebPackage
 
     private
 
-    # TODO: Implement `substitute_sxg_extension!` method to make use of `Settings.sub_extension`
-    def sxg_delete!(path)
+    def substitute_sxg_extension!(path)
       return unless path.is_a?(String) && (i = path.rindex(SXG_EXT))
 
       # check that extension is either the last char or followed by a slash
       ch = path[i + SXG_EXT.size]
       return if ch && ch != ?/
 
-      path.slice! i, SXG_EXT.size
+      path[i, SXG_EXT.size] = Settings.sub_extension.to_s
     end
 
     def url(env)
