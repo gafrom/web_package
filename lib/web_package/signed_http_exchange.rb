@@ -12,9 +12,6 @@ module WebPackage
 
     SIGNATURE_MAX_SIZE = 2**14
     HEADERS_MAX_SIZE   = 2**19
-    CERT_URL  = ENV.fetch 'SXG_CERT_URL'
-    CERT_PATH = ENV.fetch 'SXG_CERT_PATH'
-    PRIV_PATH = ENV.fetch 'SXG_PRIV_PATH'
 
     # Mock request-response pair just in case:
     MOCK_URL  = 'https://example.com/wow-fake-path'.freeze
@@ -27,7 +24,7 @@ module WebPackage
       @uri    = build_uri_from url
       @url    = @uri.to_s
       @inner  = InnerResponse.new(*response)
-      @signer = Signer.new CERT_PATH, PRIV_PATH
+      @signer = Signer.take
 
       @digest, @payload_body = MICE.new.encode @inner.payload
       @inner.headers.merge! 'digest' => "mi-sha256-03=#{base64(@digest)}"
@@ -145,10 +142,10 @@ module WebPackage
       buffer << validity_url
 
       # 6.  The 8-byte big-endian encoding of "date".
-      buffer << [@signer.signed_at.to_i].pack('Q>')
+      buffer << [signed_at.to_i].pack('Q>')
 
       # 7.  The 8-byte big-endian encoding of "expires".
-      buffer << [@signer.expires_at.to_i].pack('Q>')
+      buffer << [expires_at.to_i].pack('Q>')
 
       # 8.  The 8-byte big-endian encoding of the length in bytes of
       #     "requestUrl", followed by the bytes of "requestUrl".
@@ -199,11 +196,24 @@ module WebPackage
       @signature ||=
         structured_header_for 'label', 'cert-sha256':  @signer.cert_sha256.bytes,
                                        'cert-url':     Settings.cert_url,
-                                       'date':         @signer.signed_at.to_i,
-                                       'expires':      @signer.expires_at.to_i,
+                                       'date':         signed_at.to_i,
+                                       'expires':      expires_at.to_i,
                                        'integrity':    'digest/mi-sha256-03',
                                        'sig':          @signer.sign(message).bytes,
                                        'validity-url': validity_url
+    end
+
+    def signed_at
+      @signed_at ||= Time.now
+    end
+
+    def expires_at
+      @expires_at ||=
+        signed_at + case Settings.expires_in
+                    when Integer then Settings.expires_in
+                    when Proc then Settings.expires_in[@url].to_i
+                    else raise '[SignedHttpExchange::Settings] `expires_in` is not set or invalid'
+                    end
     end
 
     def build_uri_from(url)
