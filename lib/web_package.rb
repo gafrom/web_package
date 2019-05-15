@@ -1,8 +1,11 @@
 require 'uri'
+require 'set'
 
 require 'web_package/errors/body_encoding_error'
 require 'web_package/version'
 require 'web_package/helpers'
+require 'web_package/configuration_hash'
+require 'web_package/settings'
 require 'web_package/mice'
 require 'web_package/cbor'
 require 'web_package/inner_response'

@@ -9,6 +9,7 @@ module WebPackage
     end
 
     def call(env)
+      # TODO: Implement whitelisted paths with the use of `Settings.path_prefixes`
       env[SXG_FLAG] = true if sxg_delete!(env['PATH_INFO'])
 
       response = @app.call(env)
@@ -23,6 +24,7 @@ module WebPackage
 
     private
 
+    # TODO: Implement `substitute_sxg_extension!` method to make use of `Settings.sub_extension`
     def sxg_delete!(path)
       return unless path.is_a?(String) && (i = path.rindex(SXG_EXT))
 

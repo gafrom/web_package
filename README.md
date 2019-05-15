@@ -12,28 +12,43 @@ For that we need a certificate with a special "CanSignHttpExchanges" extension, 
 
 Also we need an `https` cdn serving static certificate in `application/cert-chain+cbor` format. We can use `gen-certurl` tool from [here](https://github.com/WICG/webpackage/tree/master/go/signedexchange#creating-our-first-signed-exchange) to convert PEM certificate into this format, so we could than serve it from a cdn.
 
-### Required environment variables
-Having done the above-said we are now ready to assign required env vars:
+### Required variables
+
+For smooth running **WebPackage** requires three variables to be set. It can be done either via environment or with the use of `WebPackage::Settings` object:
+```ruby
+# app/initializers/web_package_init.rb
+
+# variables can be set all at once:
+WebPackage::Settings.merge! cert_url: 'https://my.cdn.com/cert.cbor',
+                            cert_path: '/local/path/to/cert.pem',
+                            priv_path: '/local/path/to/priv.key'
+# or individually:
+WebPackage::Settings.cert_url = 'https://my.cdn.com/cert.cbor'
+```
 ```bash
 export SXG_CERT_URL='https://my.cdn.com/cert.cbor' \
        SXG_CERT_PATH='/local/path/to/cert.pem' \
        SXG_PRIV_PATH='/local/path/to/priv.key'
 ```
-Please note, that the variables are fetched during class initialization. And failing to provide valid paths will result in an exception.
 
 ### Use it as a middleware
 
 `WebPackage::Middleware` can handle `.sxg`-format requests by wrapping the respective HTML contents into signed exchange response. For example the route `https://my.app.com/abc.sxg` will respond with signed contents for `https://my.app.com/abc`.
 
-If you already have a Rack-based application (like Rails or Sinatra), than it is easy incorporate an SXG proxy into its middleware stack.
+If you already have a Rack-based application (like Rails or Sinatra), than it is easy to incorporate an SXG proxy into its middleware stack.
 
 #### Rails
 Add the gem to your `Gemfile`:
 ```ruby
 gem 'web_package'
 ```
-And then add the middleware:
+And then configure **WebPackage** and add the middleware:
 ```ruby
+# app/initializers/web_package_init.rb
+WebPackage::Settings.merge! cert_url: 'https://my.cdn.com/cert.cbor',
+                            cert_path: '/local/path/to/cert.pem',
+                            priv_path: '/local/path/to/priv.key'
+
 # config/application.rb
 config.middleware.insert 0, 'WebPackage::Middleware'
 ```

@@ -35,10 +35,16 @@ Naming/UncommunicativeMethodParamName:
   AllowedNames:
     - s
 
+Style/ClassVars:
+  Enabled: false
+
 Style/CharacterLiteral:
   Enabled: false
 
 Style/FrozenStringLiteralComment:
+  Enabled: false
+
+Style/MultilineBlockChain:
   Enabled: false
 
 Style/RedundantReturn:

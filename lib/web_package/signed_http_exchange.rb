@@ -12,11 +12,6 @@ module WebPackage
 
     SIGNATURE_MAX_SIZE = 2**14
     HEADERS_MAX_SIZE   = 2**19
-    SXG_HEADERS = {
-      'Content-Type'           => 'application/signed-exchange;v=b3',
-      'Cache-Control'          => 'no-transform',
-      'X-Content-Type-Options' => 'nosniff'
-    }.freeze
     CERT_URL  = ENV.fetch 'SXG_CERT_URL'
     CERT_PATH = ENV.fetch 'SXG_CERT_PATH'
     PRIV_PATH = ENV.fetch 'SXG_PRIV_PATH'
@@ -39,7 +34,7 @@ module WebPackage
     end
 
     def headers
-      SXG_HEADERS
+      Settings.headers
     end
 
     # https://tools.ietf.org/html/draft-yasskin-http-origin-signed-responses-05#section-5.3
@@ -203,7 +198,7 @@ module WebPackage
       #   4tb9Q==*;validity-url="https://example.com/resource.validity.msg"
       @signature ||=
         structured_header_for 'label', 'cert-sha256':  @signer.cert_sha256.bytes,
-                                       'cert-url':     CERT_URL,
+                                       'cert-url':     Settings.cert_url,
                                        'date':         @signer.signed_at.to_i,
                                        'expires':      @signer.expires_at.to_i,
                                        'integrity':    'digest/mi-sha256-03',
