@@ -208,12 +208,20 @@ module WebPackage
     end
 
     def expires_at
-      @expires_at ||=
-        signed_at + case Settings.expires_in
-                    when Integer then Settings.expires_in
-                    when Proc then Settings.expires_in[@url].to_i
-                    else raise '[SignedHttpExchange::Settings] `expires_in` is not set or invalid'
-                    end
+      @expires_at ||= begin
+        lifetime = case Settings.expires_in
+                   when Integer then Settings.expires_in
+                   when Proc then Settings.expires_in[@uri].to_i
+                   else raise 'Settings.expires_in is allowed to be Integer or Proc only'
+                   end
+
+        # valid lifetime is within (0, 7.days] range
+        if lifetime <= 0 || lifetime > DEFAULTS[:expires_in]
+          raise "expires_in (#{lifetime}) is out of permitted range (0, #{DEFAULTS[:expires_in]}]"
+        end
+
+        signed_at + lifetime
+      end
     end
 
     def build_uri_from(url)
