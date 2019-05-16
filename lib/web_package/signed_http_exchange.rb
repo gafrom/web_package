@@ -8,17 +8,10 @@ module WebPackage
   # Current implementation is lazy, meaning that signing is performed upon the
   # invocation of the `body` method.
   class SignedHttpExchange
+    include Helpers
+
     SIGNATURE_MAX_SIZE = 2**14
     HEADERS_MAX_SIZE   = 2**19
-    SXG_HEADERS = {
-      'Content-Type'           => 'application/signed-exchange;v=b3',
-      'Cache-Control'          => 'no-transform',
-      'X-Content-Type-Options' => 'nosniff'
-    }.freeze
-    CERT_URL  = ENV.fetch 'SXG_CERT_URL'
-    CERT_PATH = ENV.fetch 'SXG_CERT_PATH'
-    PRIV_PATH = ENV.fetch 'SXG_PRIV_PATH'
-    INTEGRITY = 'digest/mi-sha256-03'.freeze
 
     # Mock request-response pair just in case:
     MOCK_URL  = 'https://example.com/wow-fake-path'.freeze
@@ -28,38 +21,38 @@ module WebPackage
     #   url      - request url (string)
     #   response - an array, equivalent to Rack's one: [status_code, headers, body]
     def initialize(url = MOCK_URL, response = MOCK_RESP)
-      @uri = build_uri_from url
-      @url = @uri.to_s
-      @inner = InnerResponse.new(*response)
+      @uri    = build_uri_from url
+      @url    = @uri.to_s
+      @inner  = InnerResponse.new(*response)
+      @signer = Signer.take
 
-      @cbor = CBOR.new
-      @mice = MICE.new(@inner.headers, @inner.payload).tap(&:encode!)
-      @signer = Signer.new CERT_PATH, PRIV_PATH
+      @digest, @payload_body = MICE.new.encode @inner.payload
+      @inner.headers.merge! 'digest' => "mi-sha256-03=#{base64(@digest)}"
     end
 
     def headers
-      SXG_HEADERS
+      Settings.headers
     end
 
     # https://tools.ietf.org/html/draft-yasskin-http-origin-signed-responses-05#section-5.3
     def body
       return @body if @body
-      @body = ''
+      buffer = ''
 
       # 1. 8 bytes consisting of the ASCII characters "sxg1" followed by 4
       #    0x00 bytes, to serve as a file signature.  This is redundant with
       #    the MIME type, and recipients that receive both MUST check that
       #    they match and stop parsing if they don't.
       # TODO: The implementation of the final RFC MUST use the following line:
-      # @body << "sxg1\x00\x00\x00\x00"
-      @body << "sxg1-b3\x00"
+      # buffer << "sxg1\x00\x00\x00\x00"
+      buffer << "sxg1-b3\x00"
 
       # 2.  2 bytes storing a big-endian integer "fallbackUrlLength".
-      @body << [@url.bytesize].pack('S>')
+      buffer << [@url.bytesize].pack('S>')
 
       # 3.  "fallbackUrlLength" bytes holding a "fallbackUrl", which MUST be
       #     an absolute URL with a scheme of "https".
-      @body << @url
+      buffer << @url
 
       # 4.  3 bytes storing a big-endian integer "sigLength".  If this is
       #     larger than 16384 (16*1024), parsing MUST fail.
@@ -67,26 +60,26 @@ module WebPackage
         raise Errors::BodyEncodingError, 'Structured Signature Header length is too large: '\
               "#{signature.bytesize} bytes, max: #{SIGNATURE_MAX_SIZE} bytes."
       end
-      @body << [signature.bytesize].pack('L>').byteslice(-3, 3)
+      buffer << [signature.bytesize].pack('L>').byteslice(-3, 3)
 
       # 5.  3 bytes storing a big-endian integer "headerLength".  If this is
       #     larger than 524288 (512*1024), parsing MUST fail.
-      if encoded_mice_headers.bytesize > HEADERS_MAX_SIZE
+      if cbor_encoded_headers.bytesize > HEADERS_MAX_SIZE
         raise Errors::BodyEncodingError, 'Response Headers length is too large: '\
-              "#{encoded_mice_headers.bytesize} bytes, max: #{HEADERS_MAX_SIZE} bytes."
+              "#{cbor_encoded_headers.bytesize} bytes, max: #{HEADERS_MAX_SIZE} bytes."
       end
-      @body << [encoded_mice_headers.bytesize].pack('L>').byteslice(-3, 3)
+      buffer << [cbor_encoded_headers.bytesize].pack('L>').byteslice(-3, 3)
 
       # 6.  "sigLength" bytes holding the "Signature" header field's value
       #     (Section 3.1).
-      @body << signature
+      buffer << signature
 
       # 7.  "headerLength" bytes holding "signedHeaders", the canonical
       #     serialization (Section 3.4) of the CBOR representation of the
       #     response headers of the exchange represented by the "application/
       #     signed-exchange" resource (Section 3.2), excluding the
       #     "Signature" header field.
-      @body << encoded_mice_headers
+      buffer << cbor_encoded_headers
 
       # 8.  The payload body (Section 3.3 of [RFC7230]) of the exchange
       #     represented by the "application/signed-exchange" resource.
@@ -95,7 +88,9 @@ module WebPackage
       #     exchange" header block has no effect.  A "Transfer-Encoding"
       #     header field on the outer HTTP response that transfers this
       #     resource still has its normal effect.
-      @body << @mice.body
+      buffer << @payload_body
+
+      @body = buffer
     end
 
     def to_rack_response
@@ -106,7 +101,7 @@ module WebPackage
 
     def message
       return @message if @message
-      @message = ''
+      buffer = ''
 
       # Help in debugging "VerifyFinal failed." error, source code:
       #   https://github.com/chromium/chromium/blob/8f0bd6c8be04f0dd556d42820f1eec0963dfe10b/
@@ -124,49 +119,50 @@ module WebPackage
       # certificate and an exchange-signing certificate.
 
       # 1.  A string that consists of octet 32 (0x20) repeated 64 times.
-      @message << "\x20" * 64
+      buffer << "\x20" * 64
 
       # 2.  A context string: the ASCII encoding of "HTTP Exchange 1".
       #     ... but implementations of drafts MUST NOT use it and MUST use another
       #     draft-specific string beginning with "HTTP Exchange 1 " instead.
       # TODO: The implementation of the final RFC MUST use the following line:
-      # @message << "HTTP Exchange 1"
-      @message << 'HTTP Exchange 1 b3'
+      # buffer << "HTTP Exchange 1"
+      buffer << 'HTTP Exchange 1 b3'
 
       # 3.  A single 0 byte which serves as a separator.
-      @message << "\x00"
+      buffer << "\x00"
 
       # 4.  If "cert-sha256" is set, a byte holding the value 32
       #     followed by the 32 bytes of the value of "cert-sha256".
       #     Otherwise a 0 byte.
-      @message << (@signer.cert_sha256 ? "\x20#{@signer.cert_sha256}" : "\x00")
+      buffer << (@signer.cert_sha256 ? "\x20#{@signer.cert_sha256}" : "\x00")
 
       # 5.  The 8-byte big-endian encoding of the length in bytes of
       #     "validity-url", followed by the bytes of "validity-url".
-      @message << [validity_url.bytesize].pack('Q>')
-      @message << validity_url
+      buffer << [validity_url.bytesize].pack('Q>')
+      buffer << validity_url
 
       # 6.  The 8-byte big-endian encoding of "date".
-      @message << [@signer.signed_at.to_i].pack('Q>')
+      buffer << [signed_at.to_i].pack('Q>')
 
       # 7.  The 8-byte big-endian encoding of "expires".
-      @message << [@signer.expires_at.to_i].pack('Q>')
+      buffer << [expires_at.to_i].pack('Q>')
 
       # 8.  The 8-byte big-endian encoding of the length in bytes of
       #     "requestUrl", followed by the bytes of "requestUrl".
-      @message << [@url.bytesize].pack('Q>')
-      @message << @url
+      buffer << [@url.bytesize].pack('Q>')
+      buffer << @url
 
       # 9.  The 8-byte big-endian encoding of the length in bytes of
       #     "responseHeaders", followed by the bytes of
       #     "responseHeaders".
-      @message << [encoded_mice_headers.bytesize].pack('Q>')
-      @message << encoded_mice_headers
+      buffer << [cbor_encoded_headers.bytesize].pack('Q>')
+      buffer << cbor_encoded_headers
+
+      @message = buffer
     end
 
-    def encoded_mice_headers
-      @encoded_mice_headers ||=
-        @cbor.generate @mice.headers.merge(':status' => bin(@inner.status))
+    def cbor_encoded_headers
+      @cbor_encoded_headers ||= CBOR.new.generate @inner.headers
     end
 
     # returns a string representing serialized label + params
@@ -199,12 +195,33 @@ module WebPackage
       #   4tb9Q==*;validity-url="https://example.com/resource.validity.msg"
       @signature ||=
         structured_header_for 'label', 'cert-sha256':  @signer.cert_sha256.bytes,
-                                       'cert-url':     CERT_URL,
-                                       'date':         @signer.signed_at.to_i,
-                                       'expires':      @signer.expires_at.to_i,
-                                       'integrity':    INTEGRITY,
+                                       'cert-url':     Settings.cert_url,
+                                       'date':         signed_at.to_i,
+                                       'expires':      expires_at.to_i,
+                                       'integrity':    'digest/mi-sha256-03',
                                        'sig':          @signer.sign(message).bytes,
                                        'validity-url': validity_url
+    end
+
+    def signed_at
+      @signed_at ||= Time.now
+    end
+
+    def expires_at
+      @expires_at ||= begin
+        lifetime = case Settings.expires_in
+                   when Integer then Settings.expires_in
+                   when Proc then Settings.expires_in[@uri].to_i
+                   else raise 'Settings.expires_in is allowed to be Integer or Proc only'
+                   end
+
+        # valid lifetime is within (0, 7.days] range
+        if lifetime <= 0 || lifetime > DEFAULTS[:expires_in]
+          raise "expires_in (#{lifetime}) is out of permitted range (0, #{DEFAULTS[:expires_in]}]"
+        end
+
+        signed_at + lifetime
+      end
     end
 
     def build_uri_from(url)
@@ -222,14 +239,6 @@ module WebPackage
 
         URI::HTTPS.build(host: @uri.host, path: no_format_path, query: @uri.query).to_s
       end
-    end
-
-    def bin(s)
-      s.to_s.force_encoding Encoding::ASCII_8BIT
-    end
-
-    def base64(s)
-      Base64.strict_encode64 s
     end
   end
 end

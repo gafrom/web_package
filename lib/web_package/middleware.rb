@@ -9,7 +9,13 @@ module WebPackage
     end
 
     def call(env)
-      env[SXG_FLAG] = true if sxg_delete!(env['PATH_INFO'])
+      Settings.url_filter[uri(env)] ? process(env) : @app.call(env)
+    end
+
+    private
+
+    def process(env)
+      env[SXG_FLAG] = true if substitute_sxg_extension!(env['PATH_INFO'])
 
       response = @app.call(env)
       return response unless response[0] == 200 && env[SXG_FLAG]
@@ -18,22 +24,20 @@ module WebPackage
       response[2].close if response[2].respond_to? :close
 
       # substituting the original response with SXG
-      SignedHttpExchange.new(url(env), response).to_rack_response
+      SignedHttpExchange.new(uri(env), response).to_rack_response
     end
 
-    private
-
-    def sxg_delete!(path)
+    def substitute_sxg_extension!(path)
       return unless path.is_a?(String) && (i = path.rindex(SXG_EXT))
 
       # check that extension is either the last char or followed by a slash
       ch = path[i + SXG_EXT.size]
       return if ch && ch != ?/
 
-      path.slice! i, SXG_EXT.size
+      path[i, SXG_EXT.size] = Settings.sub_extension.to_s
     end
 
-    def url(env)
+    def uri(env)
       URI("https://#{env['HTTP_HOST'] || env['SERVER_NAME']}").tap do |u|
         path  = env['PATH_INFO']
         port  = env['SERVER_PORT']
@@ -42,7 +46,7 @@ module WebPackage
         u.path  = path
         u.port  = port if !u.port && port != '80'
         u.query = query if query && !query.empty?
-      end.to_s
+      end
     end
   end
 end

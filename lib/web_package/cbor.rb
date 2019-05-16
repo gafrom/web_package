@@ -31,7 +31,11 @@ module WebPackage
         bytes = hsh_size(input)
         bytes[0] |= major_type(5)
 
-        input.keys.sort_by(&:bytesize).each do |key|
+        # The sorting rules are:
+        #   * If two keys have different lengths, the shorter one sorts earlier;
+        #   * If two keys have the same length, the one with the lower value
+        #     in (byte-wise) lexical order sorts earlier.
+        input.keys.sort_by { |key| [key.bytesize, *key.bytes] }.each do |key|
           bytes.concat generate_bytes(key)
           bytes.concat generate_bytes(input[key])
         end
