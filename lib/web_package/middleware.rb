@@ -9,7 +9,12 @@ module WebPackage
     end
 
     def call(env)
-      # TODO: Implement whitelisted paths with the use of `Settings.path_prefixes`
+      Settings.url_filter[uri(env)] ? process(env) : @app.call(env)
+    end
+
+    private
+
+    def process(env)
       env[SXG_FLAG] = true if substitute_sxg_extension!(env['PATH_INFO'])
 
       response = @app.call(env)
@@ -19,10 +24,8 @@ module WebPackage
       response[2].close if response[2].respond_to? :close
 
       # substituting the original response with SXG
-      SignedHttpExchange.new(url(env), response).to_rack_response
+      SignedHttpExchange.new(uri(env), response).to_rack_response
     end
-
-    private
 
     def substitute_sxg_extension!(path)
       return unless path.is_a?(String) && (i = path.rindex(SXG_EXT))
@@ -34,7 +37,7 @@ module WebPackage
       path[i, SXG_EXT.size] = Settings.sub_extension.to_s
     end
 
-    def url(env)
+    def uri(env)
       URI("https://#{env['HTTP_HOST'] || env['SERVER_NAME']}").tap do |u|
         path  = env['PATH_INFO']
         port  = env['SERVER_PORT']
@@ -43,7 +46,7 @@ module WebPackage
         u.path  = path
         u.port  = port if !u.port && port != '80'
         u.query = query if query && !query.empty?
-      end.to_s
+      end
     end
   end
 end
