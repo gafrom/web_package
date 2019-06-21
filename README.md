@@ -18,7 +18,7 @@ E.g.
 ```ruby
 # variables can be set all at once:
 WebPackage::Settings.merge! expires_in: ->(uri) { uri.path.start_with?('/news') ? 7.days : 1.day },
-                            url_filter: ->(uri) { uri.host.start_with?('amp') },
+                            filter: ->(env) { env['HTTP_HOST'].start_with?('amp') },
                             sub_extension: '.html'
 # or individually via dot-methods:
 WebPackage::Settings.cert_url = 'https://my.cdn.com/cert.cbor'
@@ -39,10 +39,10 @@ A `String` or `nil`, representing an extension to use for proxying `.sxg` reques
 
 Default value is `nil`, which means that `.sxg` extension is just removed from the path for the rest of Rack middlewares.
 
-#### url_filter
-A `Proc`, accepting a single argument of original URI and returning boolean value. The filter determines for which paths `.sxg` formatted routes should be added.
+#### filter
+A `Proc`, accepting a single argument of environment and returning boolean value. The filter determines for which requests `.sxg` formatted routes should be added.
 
-Default value is `->(uri) { true }`, which means that all known paths are permitted and hence can be processed in SXG format using `.sxg` extension.
+Default value is `->(env) { true }`, which means that all requests are permitted and hence can be processed in SXG format using `.sxg` extension.
 
 #### cert_url, cert_path, priv_path
 

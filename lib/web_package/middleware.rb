@@ -9,7 +9,7 @@ module WebPackage
     end
 
     def call(env)
-      Settings.url_filter[uri(env)] ? process(env) : @app.call(env)
+      Settings.filter[env] ? process(env) : @app.call(env)
     end
 
     private
