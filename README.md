@@ -18,39 +18,17 @@ E.g.
 ```ruby
 # variables can be set all at once:
 WebPackage::Settings.merge! expires_in: ->(uri) { uri.path.start_with?('/news') ? 7.days : 1.day },
-                            filter: ->(env) { env['HTTP_HOST'].start_with?('amp') },
-                            sub_extension: '.html'
+                            filter: ->(env) { env['HTTP_ACCEPT'].include?('application/signed-exchange;v=b3') }
 # or individually via dot-methods:
 WebPackage::Settings.cert_url = 'https://my.cdn.com/cert.cbor'
 ```
 
-#### headers
-A `Hash`, representing html headers of SXG (outer) response.
-
-By default three headers are set: `Content-Type`, `Cache-Control`, `X-Content-Type-Options`.
-
-#### expires_in
-An `Integer` or a `Proc` evaluating to an `Integer` or an object responding to `to_i`. It sets the lifetime of signed exchange, in seconds.
-
-Default value is 7 days (604800 seconds), which is the maximum allowed by the standard. Please mind it when supplying your `Proc`.
-
-#### sub_extension
-A `String` or `nil`, representing an extension to use for proxying `.sxg` requests.
-
-Default value is `nil`, which means that `.sxg` extension is just removed from the path for the rest of Rack middlewares.
-
-#### filter
-A `Proc`, accepting a single argument of environment and returning boolean value. The filter determines for which requests `.sxg` formatted routes should be added.
-
-Default value is `->(env) { true }`, which means that all requests are permitted and hence can be processed in SXG format using `.sxg` extension.
-
-#### cert_url, cert_path, priv_path
-
-All three are `String`, pointing to a certificate with which all pages are to be signed:
-  - `cert_url` is the url of a certificate in `application/cert-chain+cbor` format
-  - `cert_path` and `priv_path` are two paths pointing at `pem` file and private key file respectively.
-
-These are the only parameters which do not have default values. An exception is raised if they are not set beforehand. Please refer below to the section of _Required variables_ on the ways to set them.
+| Parameter | Description  | Default value |
+|-----------|--------------|---------------|
+| *headers* | A `Hash`, representing html headers of SXG (outer) response. | `{ 'Content-Type' => 'application/signed-exchange;v=b3', 'Cache-Control' => 'no-transform', 'X-Content-Type-Options' => 'nosniff' }`|
+| *expires_in* | An `Integer` or a `Proc` evaluating to an `Integer` or an object responding to `to_i`. It sets the lifetime of signed exchange, in seconds.| `604800` (7 days), which is the maximum allowed by the standard. Please mind it when supplying your `Proc`.|
+| *filter* | A `Proc`, accepting a single argument of environment and returning boolean value. The filter determines for which requests an SXG format should be served. | `->(env) { env['HTTP_ACCEPT'].include?('application/signed-exchange') }`|
+| *cert_url, cert_path, priv_path* | All three are of `String` class, pointing to a certificate with which all pages are to be signed: <br>- `cert_url` is the url of a certificate in `application/cert-chain+cbor` format <br>- `cert_path` and `priv_path` are two paths pointing at `pem` file and private key file respectively. | These are the only parameters which do not have default values. An exception is raised if they are not set beforehand. Please refer below to the section of _Required variables_ on the ways to set them.|
 
 ### Required variables
 
@@ -74,7 +52,7 @@ WebPackage::Settings.cert_url = 'https://my.cdn.com/cert.cbor'
 
 ### Use it as a middleware
 
-`WebPackage::Middleware` can handle `.sxg`-format requests by wrapping the respective HTML contents into signed exchange response. For example the route `https://my.app.com/abc.sxg` will respond with signed contents for `https://my.app.com/abc`.
+`WebPackage::Middleware` wraps HTML responses for desired requests into signed exchange format.
 
 If you already have a Rack-based application (like Rails or Sinatra), than it is easy to incorporate an SXG proxy into its middleware stack.
 
@@ -89,7 +67,7 @@ And then plug the middleware in:
 config.middleware.insert 0, 'WebPackage::Middleware'
 ```
 
-That is it. Now all successful `.sxg` requests will be wrapped into signed exchanges.
+That is it. Now all successful requests with `Accept: application/signed-exchange` header will be wrapped into signed exchanges.
 
 #### Pure Rack app
 Imagine we have a simple web app:
@@ -106,12 +84,12 @@ gem 'web_package'
 use WebPackage::Middleware
 ```
 
-We are done. Start your app by running a command `rackup config.ru`. Now all supplimentary `.sxg` routes will be available just out of the box.<br>
+We are done. Start your app by running a command `rackup config.ru`.<br>
 As expected, visiting `http://localhost:9292/hello` will produce:
 ```html
 <h1>Hello world!</h1>
 ```
-What's more, visiting `http://localhost:9292/hello.sxg` will spit signed http exchange, containing original `<h1>Hello world!</h1>` HTML:
+What's more, visiting `http://localhost:9292/hello` with `Accept: application/signed-exchange` header will spit signed http exchange, containing original `<h1>Hello world!</h1>` HTML:
 ```text
 sxg1-b3\x00\x00\x1Chttps://localhost:9292/hello\x00\x019\x00\x00?label;cert-sha256=*+DoXYlCX+bFRyW65R3bFA2ICIz8Tyu54MLFUFo5tziA=*;cert-url=\"https://my.cdn.com/cert.cbor\";date=1557657274;expires=1558262074;integrity=\"digest/mi-sha256-03\";sig=*MEUCIAKKz+KSuhlzywfU12h3SkEq5ZuYYMxDZIgEDGYMd9sAAiEAj66Il48eb0CXFAnuZhnS+j6dqZVLJ6IwUVGWShhQu9g=*;validity-url=\"https://localhost/hello\"?FdigestX9mi-sha256-03=4QeUScOpSoJl7KJ47F11rSDHUTHZhDVwLiSLOWMcvqg=G:statusC200Pcontent-encodingLmi-sha256-03Vx-content-type-optionsGnosniff\x00\x00\x00\x00\x00\x00@\x00<h1>Hello world!</h1>
 ```

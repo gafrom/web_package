@@ -1,13 +1,15 @@
 module WebPackage
-  OPTIONS = %i[headers expires_in sub_extension filter cert_url cert_path priv_path].freeze
-  ENV_KEYS = Set.new(%w[SXG_CERT_URL SXG_CERT_PATH SXG_PRIV_PATH]).freeze
+  OPTIONS       = %i[headers expires_in filter cert_url cert_path priv_path].freeze
+  ENV_KEYS      = Set.new(%w[SXG_CERT_URL SXG_CERT_PATH SXG_PRIV_PATH]).freeze
+  SXG_MIME_TYPE = 'application/signed-exchange'.freeze
+  ACCEPT_HEADER = 'HTTP_ACCEPT'.freeze
+
   DEFAULTS = {
     headers: { 'Content-Type'           => 'application/signed-exchange;v=b3',
                'Cache-Control'          => 'no-transform',
                'X-Content-Type-Options' => 'nosniff' },
     expires_in:    60 * 60 * 24 * 7, # 7.days
-    sub_extension: nil, # proxy as default format (html)
-    filter: ->(_env) { true } # all requests are permitted
+    filter: ->(env) { env[ACCEPT_HEADER].include?(SXG_MIME_TYPE) }
   }.freeze
 
   Settings = ConfigurationHash.new(OPTIONS) do |config, key|

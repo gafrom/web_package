@@ -1,5 +1,4 @@
 module WebPackage
-  SXG_EXT = '.sxg'.freeze
   SXG_FLAG = 'web_package.sxg'.freeze
 
   # A Rack-compatible middleware.
@@ -15,26 +14,15 @@ module WebPackage
     private
 
     def process(env)
-      env[SXG_FLAG] = true if substitute_sxg_extension!(env['PATH_INFO'])
-
+      env[SXG_FLAG] = true
       response = @app.call(env)
-      return response unless response[0] == 200 && env[SXG_FLAG]
+      return response if response[0] != 200
 
       # the original body must be closed first
       response[2].close if response[2].respond_to? :close
 
       # substituting the original response with SXG
       SignedHttpExchange.new(uri(env), response).to_rack_response
-    end
-
-    def substitute_sxg_extension!(path)
-      return unless path.is_a?(String) && (i = path.rindex(SXG_EXT))
-
-      # check that extension is either the last char or followed by a slash
-      ch = path[i + SXG_EXT.size]
-      return if ch && ch != ?/
-
-      path[i, SXG_EXT.size] = Settings.sub_extension.to_s
     end
 
     def uri(env)
