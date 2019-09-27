@@ -26,8 +26,8 @@ module WebPackage
       @inner  = InnerResponse.new(*response)
       @signer = Signer.take
 
-      @digest, @payload_body = MICE.new.encode @inner.payload.to_s
-      @inner.headers.merge! 'digest' => "mi-sha256-03=#{base64(@digest.to_s)}"
+      @digest, @payload_body = MICE.new.encode @inner.payload || ''
+      @inner.headers.merge! 'digest' => "mi-sha256-03=#{base64(@digest || '')}"
     end
 
     def headers
