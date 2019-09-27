@@ -38,12 +38,7 @@ module WebPackage
     end
 
     def unrack_body
-      payload = nil
-
-      # Rack's body yields strings
-      @body.each { |str| payload ? (payload << str) : (payload = str) }
-
-      payload
+      @body.reduce('', :<<)
     end
   end
 end
